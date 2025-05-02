@@ -1,25 +1,25 @@
-# src/train.py
-
 import pandas as pd
 import numpy as np
 import pickle
 import os
+import json
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import classification_report, accuracy_score
-from xgboost import XGBClassifier 
+from sklearn.metrics import classification_report, accuracy_score, f1_score
+from xgboost import XGBClassifier
+
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 
+import mlflow
+import mlflow.sklearn
+import mlflow.keras
+
 def train_classical_models(X_train, y_train, X_test, y_test, save_dir="models"):
-    """
-    Trains Logistic Regression, XGBoost, and Decision Tree models.
-    Saves the models into the specified directory.
-    """
     os.makedirs(save_dir, exist_ok=True)
 
     models = {
@@ -31,29 +31,43 @@ def train_classical_models(X_train, y_train, X_test, y_test, save_dir="models"):
     results = {}
 
     for name, model in models.items():
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
+        with mlflow.start_run(run_name=f"{name}_default"):
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
 
-        results[name] = {
-            "accuracy": acc,
-            "report": classification_report(y_test, y_pred, output_dict=True)
-        }
+            acc = accuracy_score(y_test, y_pred)
+            f1 = f1_score(y_test, y_pred)
 
-        # Save each model
-        with open(os.path.join(save_dir, f"{name}.pkl"), "wb") as f:
-            pickle.dump(model, f)
+            report = classification_report(y_test, y_pred, output_dict=True)
 
-        print(f"✅ {name} trained and saved. Accuracy: {acc:.4f}")
+            results[name] = {
+                "accuracy": acc,
+                "f1_score": f1,
+                "report": report
+            }
+
+            # Save locally
+            model_path = os.path.join(save_dir, f"{name}.pkl")
+            with open(model_path, "wb") as f:
+                pickle.dump(model, f)
+
+            # Log to MLflow
+            mlflow.log_metric("accuracy", acc)
+            mlflow.log_metric("f1_score", f1)
+            mlflow.sklearn.log_model(model, name)
+
+            # Log classification report as artifact
+            report_path = os.path.join(save_dir, f"{name}_report.json")
+            with open(report_path, "w") as f:
+                json.dump(report, f)
+            mlflow.log_artifact(report_path)
+
+            print(f"✅ {name} trained and logged. Accuracy: {acc:.4f}")
 
     return results
 
 
 def train_lstm_model(X_train, y_train, X_test, y_test, save_dir="models"):
-    """
-    Trains a simple dense-based model (inspired by LSTM architecture).
-    Saves the model into the specified directory.
-    """
     os.makedirs(save_dir, exist_ok=True)
 
     input_dim = X_train.shape[1]
@@ -68,36 +82,41 @@ def train_lstm_model(X_train, y_train, X_test, y_test, save_dir="models"):
                   loss='binary_crossentropy',
                   metrics=['accuracy'])
 
-    model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2, verbose=1)
+    with mlflow.start_run(run_name="lstm_dense_default"):
+        model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2, verbose=1)
 
-    # Evaluate
-    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
+        loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
 
-    model.save(os.path.join(save_dir, "lstm_model.h5"))
+        model_path = os.path.join(save_dir, "lstm_model.h5")
+        model.save(model_path)
 
-    print(f"✅ LSTM model trained and saved. Accuracy: {accuracy:.4f}")
+        mlflow.log_metric("accuracy", accuracy)
+        mlflow.keras.log_model(model, "lstm_model")
+
+        print(f"✅ LSTM model trained and logged. Accuracy: {accuracy:.4f}")
 
     return accuracy
 
-if __name__ == "__main__":
-    print("Running model training script...")
 
-    # ✅ Load preprocessed data
+if __name__ == "__main__":
+    print("🔧 Running model training...")
+
+    # Load preprocessed data
     X = pd.read_csv("../data/processed/X_processed.csv")
     y = pd.read_csv("../data/processed/y_processed.csv").squeeze()
 
-    # ✅ Split the data
+    # Split the data
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    # ✅ Train classical models
+    # Train classical models
     classical_results = train_classical_models(X_train, y_train, X_test, y_test)
 
-    # ✅ Train LSTM model
+    # Train dense neural net
     lstm_accuracy = train_lstm_model(X_train, y_train, X_test, y_test)
 
-    # ✅ Combine all results
+    # Summarise
     all_accuracies = {model: result['accuracy'] for model, result in classical_results.items()}
     all_accuracies["lstm_model"] = lstm_accuracy
 
@@ -105,9 +124,6 @@ if __name__ == "__main__":
     for model, acc in all_accuracies.items():
         print(f"{model}: {acc:.4f}")
 
-    # ✅ Find the best model
     best_model_name = max(all_accuracies, key=all_accuracies.get)
     best_model_accuracy = all_accuracies[best_model_name]
     print(f"\n🏆 Best Model: {best_model_name} with Accuracy: {best_model_accuracy:.4f}")
-    
-
