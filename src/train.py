@@ -47,7 +47,7 @@ def train_classical_models(X_train, y_train, X_test, y_test, save_dir="models"):
             }
 
             # Save locally
-            model_path = os.path.join(save_dir, f"{name}.pkl")
+            model_path = f"models/{name}.pkl"
             with open(model_path, "wb") as f:
                 pickle.dump(model, f)
 
@@ -62,7 +62,7 @@ def train_classical_models(X_train, y_train, X_test, y_test, save_dir="models"):
                 json.dump(report, f)
             mlflow.log_artifact(report_path)
 
-            print(f"✅ {name} trained and logged. Accuracy: {acc:.4f}")
+            print(f" {name} trained and logged. Accuracy: {acc:.4f}")
 
     return results
 
@@ -93,7 +93,7 @@ def train_lstm_model(X_train, y_train, X_test, y_test, save_dir="models"):
         mlflow.log_metric("accuracy", accuracy)
         mlflow.keras.log_model(model, "lstm_model")
 
-        print(f"✅ LSTM model trained and logged. Accuracy: {accuracy:.4f}")
+        print(f"LSTM model trained and logged. Accuracy: {accuracy:.4f}")
 
     return accuracy
 
@@ -120,10 +120,10 @@ if __name__ == "__main__":
     all_accuracies = {model: result['accuracy'] for model, result in classical_results.items()}
     all_accuracies["lstm_model"] = lstm_accuracy
 
-    print("\n🔵 All Model Accuracies:")
+    print("\n All Model Accuracies:")
     for model, acc in all_accuracies.items():
         print(f"{model}: {acc:.4f}")
 
     best_model_name = max(all_accuracies, key=all_accuracies.get)
     best_model_accuracy = all_accuracies[best_model_name]
-    print(f"\n🏆 Best Model: {best_model_name} with Accuracy: {best_model_accuracy:.4f}")
+    print(f"\n Best Model: {best_model_name} with Accuracy: {best_model_accuracy:.4f}")

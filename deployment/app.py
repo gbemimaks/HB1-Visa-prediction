@@ -5,11 +5,10 @@ import joblib
 import uvicorn
 import os
 
-# Load model and artifacts
-MODEL_PATH = "/content/drive/MyDrive/Project/HB1_VISA_PREDICTION/src/models/xgboost.pkl"
-SCALER_PATH = "/content/drive/MyDrive/Project/HB1_VISA_PREDICTION/src/models/scaler.pkl"
-ENCODERS_PATH = "/content/drive/MyDrive/Project/HB1_VISA_PREDICTION/src/models/label_encoders.pkl"
-TARGET_ENCODER_PATH = "/content/drive/MyDrive/Project/HB1_VISA_PREDICTION/src/models/target_encoder.pkl"
+MODEL_PATH = "models/xgboost.pkl"
+SCALER_PATH = "models/scaler.pkl"
+ENCODERS_PATH = "models/label_encoders.pkl"
+TARGET_ENCODER_PATH = "models/target_encoder.pkl"
 
 model = joblib.load(MODEL_PATH)
 scaler = joblib.load(SCALER_PATH)
